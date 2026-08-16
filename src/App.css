@@ -1,0 +1,448 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  text-align: left;
+}
+
+.app-main {
+  flex: 1;
+  padding: 24px;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* ---- Header ---- */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.app-header__logo {
+  font-size: 22px;
+}
+
+.app-header__user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.app-header__switch-label {
+  color: var(--text);
+}
+
+.app-header__user select {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+/* ---- Onboarding ---- */
+
+.onboarding {
+  display: flex;
+  justify-content: center;
+  padding: 48px 16px;
+}
+
+.onboarding__card {
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  text-align: left;
+}
+
+.onboarding__card p {
+  color: var(--text);
+  margin: 8px 0 20px;
+}
+
+.onboarding__card form {
+  display: flex;
+  gap: 10px;
+}
+
+.onboarding__card input {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.onboarding__error {
+  color: #d84040;
+  margin-top: 12px;
+}
+
+/* ---- Workspace ---- */
+
+.workspace__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.join-code {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.join-code strong {
+  color: var(--text-h);
+  letter-spacing: 1px;
+}
+
+.workspace__hint {
+  color: var(--text);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.tab {
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab--active {
+  color: var(--text-h);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.student-viewer__picker {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: none;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.chip--active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--text-h);
+}
+
+/* ---- Kanban board ---- */
+
+.kanban-board__columns {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.kanban-board__empty {
+  color: var(--text);
+}
+
+.board-column {
+  flex: 0 0 280px;
+  width: 280px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--code-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.board-column--add {
+  background: none;
+  border-style: dashed;
+}
+
+.board-column__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.board-column__header h3 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-h);
+  flex: 1;
+}
+
+.board-column__count {
+  font-size: 12px;
+  color: var(--text);
+  background: var(--social-bg);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.board-column__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.board-column__empty {
+  color: var(--text);
+  font-size: 13px;
+  text-align: center;
+  padding: 12px 0;
+}
+
+.add-card-btn,
+.add-list-btn {
+  border: 1px dashed var(--border);
+  background: none;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--text);
+  text-align: left;
+}
+
+.add-card-btn:hover,
+.add-list-btn:hover {
+  border-color: var(--accent-border);
+  color: var(--text-h);
+}
+
+.add-list-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.add-list-form input {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+/* ---- Card ---- */
+
+.card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card__handle {
+  cursor: grab;
+  color: var(--text);
+  touch-action: none;
+}
+
+.card__title {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text-h);
+  word-break: break-word;
+}
+
+.card__content {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.card__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badge--public {
+  background: rgba(59, 170, 100, 0.15);
+  color: #2f9e56;
+}
+
+.badge--draft {
+  background: rgba(255, 159, 10, 0.15);
+  color: #b8720a;
+}
+
+/* ---- Card form ---- */
+
+.card-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card-form__title,
+.card-form__content {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  resize: vertical;
+}
+
+.card-form__actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ---- Buttons ---- */
+
+.btn {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn--ghost {
+  background: none;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.btn--ghost:hover {
+  color: var(--text-h);
+  border-color: var(--accent-border);
+}
+
+.btn--danger:hover {
+  color: #d84040;
+  border-color: #d84040;
+}
+
+.btn--sm {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+.icon-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.icon-btn:hover {
+  color: #d84040;
+}
+
+/* ---- Schedule ---- */
+
+.schedule-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.schedule-table {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 640px;
+}
+
+.schedule-table th,
+.schedule-table td {
+  border: 1px solid var(--border);
+  padding: 8px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.schedule-table__period {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.schedule-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.schedule-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.schedule-form select,
+.schedule-form input {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
