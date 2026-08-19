@@ -1,0 +1,172 @@
+rules_version = '2';
+
+// 수업용 칸반보드 접근 제어.
+//
+// PRD 07절이 지적한 대로 이 앱에는 서버가 없어, 접근 제어가 전적으로 이 파일에
+// 달려 있다. 규칙 자체의 결함이 곧 정보 유출 사고다. 바꿀 때는 반드시
+// `npm run test:rules`를 통과시킬 것.
+//
+// 핵심 불변식
+//  1. 학생의 개인 기록(카드/리스트)은 같은 학급의 다른 학생에게 절대 보이지 않는다.
+//  2. 교사의 비공개 공지 초안은 학생에게 보이지 않는다.
+//  3. role은 사용자가 스스로 바꿀 수 없다. teacher 승격은 콘솔(Admin SDK)뿐이다.
+//  4. 단체 채팅방은 그 학급 구성원 전원에게 공개되는 것이 의도된 동작이다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myProfile() {
+      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data;
+    }
+
+    function myClassId() {
+      return myProfile().classId;
+    }
+
+    function isTeacherOf(classId) {
+      return signedIn() && myProfile().role == 'teacher' && myClassId() == classId;
+    }
+
+    function isMemberOf(classId) {
+      return signedIn() && classId != null && myClassId() == classId;
+    }
+
+    // ---- profiles ----
+    //
+    // 자기 문서는 언제나 읽는다(학급 배정 전에도 필요하다). 남의 문서는 같은 학급일
+    // 때만 — 학생 명단은 학급 안에서만 의미가 있다.
+    match /profiles/{userId} {
+      allow get: if signedIn() && (userId == request.auth.uid || isMemberOf(resource.data.classId));
+      allow list: if signedIn() && isMemberOf(resource.data.classId);
+
+      // 가입 직후 자기 문서를 만든다. role은 반드시 student, 학급은 미배정이어야 한다.
+      // 이 두 제약이 "스스로 교사가 되는" 경로를 막는 첫 번째 자물쇠다.
+      allow create: if signedIn()
+                    && userId == request.auth.uid
+                    && request.resource.data.id == userId
+                    && request.resource.data.role == 'student'
+                    && request.resource.data.classId == null
+                    && request.resource.data.displayName is string;
+
+      // 자기 문서만, role은 그대로. 두 번째 자물쇠다.
+      // classId는 학급 참여를 위해 바꿀 수 있다 — 학급 ID는 가입 코드를 알아야만
+      // 얻을 수 있는 20자 난수라, 사실상 그 자체가 참여 자격 증명 역할을 한다.
+      allow update: if signedIn()
+                    && userId == request.auth.uid
+                    && request.resource.data.role == resource.data.role
+                    && request.resource.data.id == resource.data.id;
+
+      allow delete: if false;
+    }
+
+    // ---- joinCodes ----
+    //
+    // 코드 → 학급 매핑. 문서 ID가 곧 가입 코드라 코드를 아는 사람만 집어 읽을 수 있고,
+    // 목록 조회는 막혀 있어 코드를 훑어 캐낼 수 없다.
+    match /joinCodes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.teacherId == request.auth.uid;
+      // 수정·삭제를 막아, 남이 발급한 코드를 자기 학급으로 가로채는 경로를 없앤다.
+      allow update, delete: if false;
+    }
+
+    // ---- classes ----
+    match /classes/{classId} {
+      allow get, list: if isMemberOf(classId);
+
+      // 학급 생성은 교사만. 자기를 담임으로만 만들 수 있다.
+      allow create: if signedIn()
+                    && myProfile().role == 'teacher'
+                    && request.resource.data.teacherId == request.auth.uid
+                    && request.resource.data.id == classId;
+
+      // 일정 편집 등. 담임 교체와 가입 코드 변경은 막는다.
+      allow update: if isTeacherOf(classId)
+                    && request.resource.data.teacherId == resource.data.teacherId
+                    && request.resource.data.joinCode == resource.data.joinCode;
+
+      // 학급 삭제는 아직 구현 범위 밖이다.
+      allow delete: if false;
+    }
+
+    // ---- lists ----
+    //
+    // ownerId == 'announcement' 이면 교사 공지 보드, 그 외에는 그 학생의 개인 보드다.
+    match /lists/{listId} {
+      function canReadList() {
+        return isMemberOf(resource.data.classId)
+               && (resource.data.ownerId == 'announcement'
+                   || resource.data.ownerId == request.auth.uid
+                   || isTeacherOf(resource.data.classId));
+      }
+      function canWriteList(data) {
+        return isMemberOf(data.classId)
+               && (data.ownerId == request.auth.uid
+                   || (data.ownerId == 'announcement' && isTeacherOf(data.classId)));
+      }
+
+      allow get, list: if canReadList();
+      allow create: if canWriteList(request.resource.data) && request.resource.data.id == listId;
+      // 소유자와 학급을 옮기는 수정은 막는다.
+      allow update: if canWriteList(resource.data)
+                    && request.resource.data.ownerId == resource.data.ownerId
+                    && request.resource.data.classId == resource.data.classId;
+      allow delete: if canWriteList(resource.data);
+    }
+
+    // ---- cards ----
+    //
+    // classId/ownerId는 부모 리스트에서 복사해 둔 값이다. 규칙이 카드 문서 하나만 보고
+    // 판단할 수 있어야 하고, 클라이언트도 이 필드로 쿼리를 좁힌다.
+    match /cards/{cardId} {
+      function canReadCard() {
+        return isMemberOf(resource.data.classId)
+               && (resource.data.ownerId == request.auth.uid
+                   || isTeacherOf(resource.data.classId)
+                   // 학생이 볼 수 있는 공지는 공개된 것뿐이다. 교사의 비공개 초안은 가린다.
+                   || (resource.data.ownerId == 'announcement' && resource.data.isPublic == true));
+      }
+      function canWriteCard(data) {
+        return isMemberOf(data.classId)
+               && (data.ownerId == request.auth.uid
+                   || (data.ownerId == 'announcement' && isTeacherOf(data.classId)));
+      }
+
+      allow get, list: if canReadCard();
+      allow create: if canWriteCard(request.resource.data)
+                    && request.resource.data.id == cardId
+                    && request.resource.data.createdBy == request.auth.uid;
+      allow update: if canWriteCard(resource.data) && canWriteCard(request.resource.data);
+      allow delete: if canWriteCard(resource.data);
+    }
+
+    // ---- messages ----
+    //
+    // 학급 단체 채팅방. 참여자 전원이 서로의 글을 보는 것이 의도된 동작이며(PRD 02절),
+    // 개인 보드의 비공개 원칙이 여기에는 적용되지 않는다.
+    match /messages/{messageId} {
+      allow get, list: if isMemberOf(resource.data.classId);
+
+      // 남을 사칭할 수 없도록 보낸 사람 정보를 프로필과 대조한다.
+      allow create: if isMemberOf(request.resource.data.classId)
+                    && request.resource.data.senderId == request.auth.uid
+                    && request.resource.data.senderName == myProfile().displayName
+                    && request.resource.data.senderRole == myProfile().role
+                    && request.resource.data.content is string
+                    && request.resource.data.content.size() > 0
+                    && request.resource.data.content.size() <= 2000;
+
+      // 보낸 말을 나중에 고치거나 지우는 기능은 없다.
+      allow update, delete: if false;
+    }
+
+    // 위에서 명시하지 않은 경로는 전부 거부한다.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

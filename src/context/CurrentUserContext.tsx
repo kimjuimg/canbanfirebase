@@ -28,6 +28,9 @@ export function CurrentUserProvider({ children }: { children: ReactNode }) {
     return onAuthStateChanged(auth, (user) => {
       setAuthUser(user);
       setAuthReady(true);
+      // 스토어 구독은 로그인한 사용자의 학급/역할에 맞춰 범위가 정해진다.
+      // 로그아웃 시 null을 넘겨 이전 사용자의 데이터를 남기지 않는다.
+      store.setUser(user?.uid ?? null);
       if (user) {
         const fallbackName = user.email?.split("@")[0] ?? "이름 없음";
         void store.ensureProfile(user.uid, user.displayName?.trim() || fallbackName);

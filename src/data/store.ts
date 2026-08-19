@@ -3,13 +3,14 @@ import {
   deleteDoc,
   doc,
   getDoc,
-  getDocs,
   onSnapshot,
   query,
   setDoc,
   updateDoc,
   where,
   writeBatch,
+  type Query,
+  type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import type {
@@ -22,25 +23,27 @@ import type {
   ScheduleSlot,
   Weekday,
 } from "../types";
+
 interface StoreState {
   profiles: Profile[];
   classes: ClassRoom[];
   lists: ListColumn[];
   cards: CardRecord[];
   messages: ChatMessage[];
-  /** 다섯 컬렉션의 첫 스냅샷이 모두 도착했는지. 그전까지는 빈 배열이라 화면을 막아야 한다. */
+  /** 지금 권한 범위에 필요한 첫 스냅샷이 모두 도착했는지. */
   loaded: boolean;
 }
 
 type Listener = () => void;
 
-/** Firestore 컬렉션 이름과 StoreState 필드명을 1:1로 맞춰 둔다. */
-const COLLECTIONS = ["profiles", "classes", "lists", "cards", "messages"] as const;
-type CollectionName = (typeof COLLECTIONS)[number];
-
-function newId(name: CollectionName) {
-  return doc(collection(db, name)).id;
-}
+const EMPTY_STATE: StoreState = {
+  profiles: [],
+  classes: [],
+  lists: [],
+  cards: [],
+  messages: [],
+  loaded: false,
+};
 
 function makeJoinCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -51,30 +54,41 @@ function makeJoinCode() {
   return code;
 }
 
+function newId(name: string) {
+  return doc(collection(db, name)).id;
+}
+
 /**
  * Firestore를 구독하는 데이터 스토어.
  *
- * subscribe/getSnapshot 인터페이스는 useSyncExternalStore와 맞물리도록 mock 시절과
- * 동일하게 유지했다. 달라진 점은 변경 메서드가 모두 비동기라는 것이다 — 쓰기는
- * Firestore로 나가고, 화면 갱신은 그 결과로 되돌아오는 onSnapshot이 담당한다.
- * (Firestore SDK가 로컬 반영을 먼저 해 주므로 체감상 즉시 반영된다.)
+ * 보안 규칙은 필터가 아니다 — 권한 없는 문서가 하나라도 섞일 수 있는 쿼리는 통째로
+ * 거부된다. 그래서 컬렉션 전체를 구독하지 않고, 로그인한 사용자의 학급과 역할에 맞춰
+ * 쿼리를 좁힌다. 교사는 학급 전체를, 학생은 자기 보드와 공개된 공지만 구독한다.
+ *
+ * subscribe/getSnapshot 인터페이스는 mock 시절과 같아서 화면 코드는 그대로다.
  */
 class FirestoreStore {
-  private state: StoreState = {
-    profiles: [],
-    classes: [],
-    lists: [],
-    cards: [],
-    messages: [],
-    loaded: false,
-  };
-
+  private state: StoreState = EMPTY_STATE;
   private listeners = new Set<Listener>();
-  private pending = new Set<CollectionName>(COLLECTIONS);
-  private started = false;
+
+  private uid: string | null = null;
+  private ownProfileUnsub: Unsubscribe | null = null;
+  private ownProfile: Profile | null = null;
+  private ownProfileLoaded = false;
+
+  /** 학급 범위 구독은 (학급, 역할)이 바뀔 때마다 통째로 다시 건다. */
+  private scopeKey: string | null = null;
+  private scopeUnsubs: Unsubscribe[] = [];
+  private pendingScope = new Set<string>();
+
+  // 여러 쿼리에서 나눠 들어오는 조각들. 마지막에 id 기준으로 합친다.
+  private classRoom: ClassRoom | null = null;
+  private classProfiles: Profile[] = [];
+  private listParts = new Map<string, ListColumn[]>();
+  private cardParts = new Map<string, CardRecord[]>();
+  private messages: ChatMessage[] = [];
 
   subscribe = (listener: Listener) => {
-    this.start();
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
@@ -84,31 +98,179 @@ class FirestoreStore {
   getSnapshot = (): StoreState => this.state;
 
   /**
-   * 리스너는 앱 수명 동안 한 번만 붙인다. useSyncExternalStore는 StrictMode에서
-   * subscribe/unsubscribe를 반복하는데, 그때마다 onSnapshot을 떼었다 붙이면
-   * 불필요한 재요청이 발생하기 때문이다.
+   * 로그인 상태가 바뀔 때 호출한다. 로그아웃 시에는 모든 구독을 끊고 상태를 비운다 —
+   * 이전 사용자의 데이터가 다음 사용자 화면에 남아 있으면 안 된다.
    */
-  private start() {
-    if (this.started) return;
-    this.started = true;
+  setUser(uid: string | null) {
+    if (this.uid === uid) return;
+    this.uid = uid;
 
-    for (const name of COLLECTIONS) {
-      onSnapshot(
-        collection(db, name),
-        (snap) => {
-          const rows = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
-          this.pending.delete(name);
-          this.commit({ [name]: rows, loaded: this.pending.size === 0 } as Partial<StoreState>);
-        },
-        (error) => {
-          console.error(`[store] ${name} 구독 실패`, error);
-        },
-      );
+    this.ownProfileUnsub?.();
+    this.ownProfileUnsub = null;
+    this.ownProfile = null;
+    this.ownProfileLoaded = false;
+    this.clearScope();
+
+    if (!uid) {
+      this.state = EMPTY_STATE;
+      this.notify();
+      return;
     }
+
+    this.state = EMPTY_STATE;
+    this.notify();
+
+    // 자기 프로필 문서는 항상 읽을 수 있다. 여기서 얻은 classId/role이 이후
+    // 학급 범위 구독의 근거가 된다.
+    this.ownProfileUnsub = onSnapshot(
+      doc(db, "profiles", uid),
+      (snap) => {
+        this.ownProfile = snap.exists() ? ({ ...snap.data(), id: snap.id } as Profile) : null;
+        this.ownProfileLoaded = true;
+        this.applyScope();
+        this.recompute();
+      },
+      (error) => {
+        console.error("[store] 내 프로필 구독 실패", error);
+        this.ownProfileLoaded = true;
+        this.recompute();
+      },
+    );
   }
 
-  private commit(patch: Partial<StoreState>) {
-    this.state = { ...this.state, ...patch };
+  private clearScope() {
+    this.scopeUnsubs.forEach((unsub) => unsub());
+    this.scopeUnsubs = [];
+    this.scopeKey = null;
+    this.pendingScope.clear();
+    this.classRoom = null;
+    this.classProfiles = [];
+    this.listParts.clear();
+    this.cardParts.clear();
+    this.messages = [];
+  }
+
+  private applyScope() {
+    const profile = this.ownProfile;
+    const key = profile?.classId ? `${profile.classId}|${profile.role}` : null;
+    if (key === this.scopeKey) return;
+
+    this.clearScope();
+    this.scopeKey = key;
+    if (!profile?.classId) return;
+
+    const classId = profile.classId;
+    const isTeacher = profile.role === "teacher";
+
+    this.watchDoc("class", doc(db, "classes", classId), (data) => {
+      this.classRoom = data as ClassRoom | null;
+    });
+
+    this.watchQuery("profiles", query(collection(db, "profiles"), where("classId", "==", classId)), (rows) => {
+      this.classProfiles = rows as Profile[];
+    });
+
+    if (isTeacher) {
+      // 교사는 학급의 모든 보드를 열람한다(PRD P0).
+      this.watchQuery("lists", query(collection(db, "lists"), where("classId", "==", classId)), (rows) => {
+        this.listParts.set("all", rows as ListColumn[]);
+      });
+      this.watchQuery("cards", query(collection(db, "cards"), where("classId", "==", classId)), (rows) => {
+        this.cardParts.set("all", rows as CardRecord[]);
+      });
+    } else {
+      // 학생은 자기 보드와 공지 보드만. 남의 개인 보드는 쿼리 자체를 만들지 않는다.
+      this.watchQuery(
+        "lists:mine",
+        query(collection(db, "lists"), where("classId", "==", classId), where("ownerId", "==", profile.id)),
+        (rows) => this.listParts.set("mine", rows as ListColumn[]),
+      );
+      this.watchQuery(
+        "lists:announcement",
+        query(collection(db, "lists"), where("classId", "==", classId), where("ownerId", "==", "announcement")),
+        (rows) => this.listParts.set("announcement", rows as ListColumn[]),
+      );
+      this.watchQuery(
+        "cards:mine",
+        query(collection(db, "cards"), where("classId", "==", classId), where("ownerId", "==", profile.id)),
+        (rows) => this.cardParts.set("mine", rows as CardRecord[]),
+      );
+      // 교사의 비공개 초안은 규칙상 읽을 수 없으므로 isPublic 조건을 쿼리에 넣는다.
+      this.watchQuery(
+        "cards:announcement",
+        query(
+          collection(db, "cards"),
+          where("classId", "==", classId),
+          where("ownerId", "==", "announcement"),
+          where("isPublic", "==", true),
+        ),
+        (rows) => this.cardParts.set("announcement", rows as CardRecord[]),
+      );
+    }
+
+    this.watchQuery("messages", query(collection(db, "messages"), where("classId", "==", classId)), (rows) => {
+      this.messages = rows as ChatMessage[];
+    });
+  }
+
+  private watchDoc(key: string, ref: ReturnType<typeof doc>, apply: (data: unknown) => void) {
+    this.pendingScope.add(key);
+    this.scopeUnsubs.push(
+      onSnapshot(
+        ref,
+        (snap) => {
+          apply(snap.exists() ? { ...snap.data(), id: snap.id } : null);
+          this.pendingScope.delete(key);
+          this.recompute();
+        },
+        (error) => this.onScopeError(key, error),
+      ),
+    );
+  }
+
+  private watchQuery(key: string, q: Query, apply: (rows: unknown[]) => void) {
+    this.pendingScope.add(key);
+    this.scopeUnsubs.push(
+      onSnapshot(
+        q,
+        (snap) => {
+          apply(snap.docs.map((d) => ({ ...d.data(), id: d.id })));
+          this.pendingScope.delete(key);
+          this.recompute();
+        },
+        (error) => this.onScopeError(key, error),
+      ),
+    );
+  }
+
+  /** 구독이 실패해도 화면이 로딩에 갇히지 않도록 해당 조각을 완료로 처리한다. */
+  private onScopeError(key: string, error: unknown) {
+    console.error(`[store] ${key} 구독 실패`, error);
+    this.pendingScope.delete(key);
+    this.recompute();
+  }
+
+  private recompute() {
+    const byId = <T extends { id: string }>(groups: T[][]): T[] => {
+      const merged = new Map<string, T>();
+      groups.forEach((rows) => rows.forEach((row) => merged.set(row.id, row)));
+      return [...merged.values()];
+    };
+
+    const profiles = byId<Profile>([this.ownProfile ? [this.ownProfile] : [], this.classProfiles]);
+
+    this.state = {
+      profiles,
+      classes: this.classRoom ? [this.classRoom] : [],
+      lists: byId<ListColumn>([...this.listParts.values()]),
+      cards: byId<CardRecord>([...this.cardParts.values()]),
+      messages: this.messages,
+      loaded: this.ownProfileLoaded && this.pendingScope.size === 0,
+    };
+    this.notify();
+  }
+
+  private notify() {
     this.listeners.forEach((listener) => listener());
   }
 
@@ -136,6 +298,13 @@ class FirestoreStore {
 
   // ---- classes ----
 
+  /**
+   * 학급을 만들고 만든 교사를 그 학급에 넣는다.
+   *
+   * 두 번에 나눠 쓰는 이유: 보안 규칙의 get()은 배치 이전 상태를 본다. 공지 리스트
+   * 생성 규칙은 "내 프로필의 classId가 이 학급인가"를 보므로, 프로필 갱신과 같은
+   * 배치에 넣으면 아직 갱신 전이라 거부된다.
+   */
   async createClass(name: string, teacherId: string): Promise<ClassRoom> {
     const newClass: ClassRoom = {
       id: newId("classes"),
@@ -144,18 +313,27 @@ class FirestoreStore {
       teacherId,
       schedule: [],
     };
+
     const batch = writeBatch(db);
     batch.set(doc(db, "classes", newClass.id), newClass);
+    // 가입 코드는 별도 컬렉션에 둔다. 코드를 아는 사람만 문서 ID로 집어 읽을 수 있어,
+    // 학급 목록을 훑어 코드를 캐내는 경로가 막힌다.
+    batch.set(doc(db, "joinCodes", newClass.joinCode), {
+      classId: newClass.id,
+      teacherId,
+    });
     batch.update(doc(db, "profiles", teacherId), { classId: newClass.id });
+    await batch.commit();
+
     const listId = newId("lists");
-    batch.set(doc(db, "lists", listId), {
+    await setDoc(doc(db, "lists", listId), {
       id: listId,
       classId: newClass.id,
       ownerId: "announcement",
       title: "공지",
       order: 0,
     });
-    await batch.commit();
+
     return newClass;
   }
 
@@ -165,14 +343,16 @@ class FirestoreStore {
   ): Promise<{ ok: true } | { ok: false; error: string }> {
     // 가입 코드는 항상 대문자로 발급하므로, 입력값도 대문자로 맞춰 조회한다.
     const code = joinCode.trim().toUpperCase();
-    const found = await getDocs(query(collection(db, "classes"), where("joinCode", "==", code)));
-    if (found.empty) {
+    const mapping = await getDoc(doc(db, "joinCodes", code));
+    if (!mapping.exists()) {
       return { ok: false, error: "가입 코드를 찾을 수 없습니다." };
     }
-    const classId = found.docs[0].id;
+    const classId = mapping.data().classId as string;
+
+    // 프로필을 먼저 갱신해야 개인 보드 리스트 생성이 규칙을 통과한다(createClass 주석 참고).
+    await updateDoc(doc(db, "profiles", profileId), { classId });
 
     const batch = writeBatch(db);
-    batch.update(doc(db, "profiles", profileId), { classId });
     ["할 일", "완료"].forEach((title, order) => {
       const listId = newId("lists");
       batch.set(doc(db, "lists", listId), { id: listId, classId, ownerId: profileId, title, order });
@@ -219,10 +399,14 @@ class FirestoreStore {
   // ---- cards ----
 
   async createCard(listId: string, title: string, content: string, createdBy: string, isPublic: boolean) {
+    const list = this.state.lists.find((l) => l.id === listId);
+    if (!list) return;
     const siblingCount = this.state.cards.filter((c) => c.listId === listId).length;
     const card: CardRecord = {
       id: newId("cards"),
       listId,
+      classId: list.classId,
+      ownerId: list.ownerId,
       title,
       content,
       order: siblingCount,
@@ -246,7 +430,10 @@ class FirestoreStore {
     if (updates.length === 0) return;
     const batch = writeBatch(db);
     updates.forEach(({ cardId, listId, order }) => {
-      batch.update(doc(db, "cards", cardId), { listId, order });
+      const list = this.state.lists.find((l) => l.id === listId);
+      // 목적지 리스트의 소유자 정보를 함께 옮겨 비정규화된 값이 어긋나지 않게 한다.
+      const denormalized = list ? { classId: list.classId, ownerId: list.ownerId } : {};
+      batch.update(doc(db, "cards", cardId), { listId, order, ...denormalized });
     });
     await batch.commit();
   }

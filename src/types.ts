@@ -41,6 +41,15 @@ export interface ListColumn {
 export interface CardRecord {
   id: string;
   listId: string;
+  /**
+   * 소속 리스트의 classId/ownerId 사본.
+   *
+   * 보안 규칙은 문서 하나만 보고 판단할 수 있어야 하고, 클라이언트도 권한 범위에
+   * 맞게 쿼리를 좁혀야 한다(규칙은 필터가 아니라서, 권한 없는 문서가 섞일 수 있는
+   * 쿼리는 통째로 거부된다). 카드마다 부모 리스트를 조회하지 않으려고 복사해 둔다.
+   */
+  classId: string;
+  ownerId: BoardOwner;
   title: string;
   content: string;
   order: number;
