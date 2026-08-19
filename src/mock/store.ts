@@ -1,18 +1,21 @@
 import type {
   CardRecord,
+  ChatMessage,
   ClassRoom,
   ListColumn,
   Profile,
+  Role,
   ScheduleSlot,
   Weekday,
 } from "../types";
-import { SEED_CARDS, SEED_CLASSES, SEED_LISTS, SEED_PROFILES } from "./seedData";
+import { SEED_CARDS, SEED_CLASSES, SEED_LISTS, SEED_MESSAGES, SEED_PROFILES } from "./seedData";
 
 interface StoreState {
   profiles: Profile[];
   classes: ClassRoom[];
   lists: ListColumn[];
   cards: CardRecord[];
+  messages: ChatMessage[];
 }
 
 type Listener = () => void;
@@ -43,6 +46,7 @@ class MockDataStore {
     classes: SEED_CLASSES.map((c) => ({ ...c, schedule: [...c.schedule] })),
     lists: SEED_LISTS.map((l) => ({ ...l })),
     cards: SEED_CARDS.map((c) => ({ ...c })),
+    messages: SEED_MESSAGES.map((m) => ({ ...m })),
   };
 
   private listeners = new Set<Listener>();
@@ -187,6 +191,21 @@ class MockDataStore {
         return update ? { ...c, listId: update.listId, order: update.order } : c;
       }),
     });
+  }
+
+  // ---- chat ----
+
+  sendMessage(classId: string, senderId: string, senderName: string, senderRole: Role, content: string) {
+    const message: ChatMessage = {
+      id: nextId("msg"),
+      classId,
+      senderId,
+      senderName,
+      senderRole,
+      content,
+      createdAt: Date.now(),
+    };
+    this.commit({ ...this.state, messages: [...this.state.messages, message] });
   }
 }
 

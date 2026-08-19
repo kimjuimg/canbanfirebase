@@ -2,10 +2,11 @@ import { useState } from "react";
 import { store } from "../mock/store";
 import { useStoreState } from "../hooks/useStoreState";
 import type { ClassRoom, Profile } from "../types";
+import { ChatRoom } from "./ChatRoom";
 import { KanbanBoard } from "./KanbanBoard";
 import { ScheduleEditor } from "./ScheduleEditor";
 
-type Tab = "announcement" | "mine" | "schedule";
+type Tab = "announcement" | "mine" | "schedule" | "chat";
 
 interface StudentWorkspaceProps {
   classRoom: ClassRoom;
@@ -39,6 +40,9 @@ export function StudentWorkspace({ classRoom, profile }: StudentWorkspaceProps) 
         </button>
         <button className={tab === "schedule" ? "tab tab--active" : "tab"} onClick={() => setTab("schedule")}>
           학급 일정
+        </button>
+        <button className={tab === "chat" ? "tab tab--active" : "tab"} onClick={() => setTab("chat")}>
+          학급 채팅
         </button>
       </nav>
 
@@ -80,6 +84,8 @@ export function StudentWorkspace({ classRoom, profile }: StudentWorkspaceProps) 
       {tab === "schedule" && (
         <ScheduleEditor schedule={classRoom.schedule} editable={false} onAdd={() => {}} onRemove={() => {}} />
       )}
+
+      {tab === "chat" && <ChatRoom classId={classRoom.id} profile={profile} />}
     </div>
   );
 }

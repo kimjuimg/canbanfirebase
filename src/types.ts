@@ -49,3 +49,14 @@ export interface CardRecord {
   createdBy: string;
   createdAt: number;
 }
+
+/** 학급 전체(교사 + 그 학급 학생 전원)가 함께 보는 단체 채팅방의 메시지. */
+export interface ChatMessage {
+  id: string;
+  classId: string;
+  senderId: string;
+  senderName: string;
+  senderRole: Role;
+  content: string;
+  createdAt: number;
+}

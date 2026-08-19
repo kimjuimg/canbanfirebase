@@ -9,7 +9,7 @@ export function Header() {
         <span className="app-header__logo" aria-hidden>
           📋
         </span>
-        <span>수업용 칸반보드</span>
+        <span>칸반보드</span>
       </div>
       <div className="app-header__user">
         <label htmlFor="mock-user-select" className="app-header__switch-label">

@@ -1,4 +1,4 @@
-# 수업용 칸반보드 (Firebase 버전)
+# 칸반보드 (Firebase 버전)
 
 `prd.md` 기획서를 바탕으로 만든 학습용 칸반보드입니다. React + Vite + TypeScript로 구성했고,
 이번 단계에서는 로그인 화면과 실제 Firebase Auth/Firestore 연동 대신 **인메모리 mock 데이터 계층**을
@@ -26,8 +26,10 @@ npm run dev
   같은 파일의 `useMockUserSwitcher`는 실습 편의를 위한 개발 전용 도구로, 실제 연동 시 통째로 제거됩니다.
 - `src/components/KanbanBoard.tsx` — `@dnd-kit` 기반 다중 컬럼 칸반 보드. 같은 리스트 내 순서 변경과
   리스트 간 카드 이동을 모두 지원합니다.
+- `src/components/ChatRoom.tsx` — 학급 전체가 함께 보는 단체 채팅방 하나. 메시지는 `messages` 컬렉션에
+  `classId`로 묶여 저장되며, 학생 개인 보드와 달리 이 공간은 참여자 전원에게 공개되는 것이 의도된 동작입니다.
 
 ## 알려진 범위 밖
 
 PRD의 범위/리스크 절에 따라 다음은 이번 단계에 포함하지 않았습니다: 로그인 화면, 실제 Firebase 연동,
-파일 첨부, 댓글/채팅, 학급당 복수 교사, Firestore 보안 규칙(현재는 UI 레벨에서만 학생 간 열람을 차단).
+파일 첨부, 카드 댓글, 1:1 채팅, 학급당 복수 교사, Firestore 보안 규칙(현재는 UI 레벨에서만 학생 간 열람을 차단).

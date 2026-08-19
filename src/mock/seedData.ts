@@ -1,5 +1,6 @@
 import type {
   CardRecord,
+  ChatMessage,
   ClassRoom,
   ListColumn,
   Profile,
@@ -9,6 +10,9 @@ export const SEED_PROFILES: Profile[] = [
   { id: "teacher-1", displayName: "김선생", role: "teacher", classId: "class-1" },
   { id: "student-1", displayName: "이지훈", role: "student", classId: "class-1" },
   { id: "student-2", displayName: "박서연", role: "student", classId: "class-1" },
+  // 아직 학급에 가입하지 않은 학생 계정. 이 계정으로 전환하면 가입코드 입력
+  // 화면(OnboardingScreen)부터 시작해, 학생의 최초 참여 흐름을 실습할 수 있다.
+  { id: "student-3", displayName: "최민준", role: "student", classId: null },
 ];
 
 export const SEED_CLASSES: ClassRoom[] = [
@@ -74,5 +78,26 @@ export const SEED_CARDS: CardRecord[] = [
     isPublic: true,
     createdBy: "student-1",
     createdAt: Date.now() - 1000 * 60 * 60 * 20,
+  },
+];
+
+export const SEED_MESSAGES: ChatMessage[] = [
+  {
+    id: "msg-1",
+    classId: "class-1",
+    senderId: "teacher-1",
+    senderName: "김선생",
+    senderRole: "teacher",
+    content: "다들 안녕하세요! 여기는 우리 반 전체 채팅방이에요.",
+    createdAt: Date.now() - 1000 * 60 * 40,
+  },
+  {
+    id: "msg-2",
+    classId: "class-1",
+    senderId: "student-1",
+    senderName: "이지훈",
+    senderRole: "student",
+    content: "안녕하세요 선생님!",
+    createdAt: Date.now() - 1000 * 60 * 38,
   },
 ];
