@@ -98,6 +98,10 @@ function JoinClassForm({ studentId }: { studentId: string }) {
           </button>
         </form>
         {error && <p className="onboarding__error">{error}</p>}
+        <p className="onboarding__note">
+          선생님이신가요? 가입한 계정은 모두 학생으로 시작합니다. 교사 권한은 Firebase 콘솔에서
+          해당 프로필의 <code>role</code> 값을 <code>teacher</code>로 바꿔야 부여됩니다.
+        </p>
       </div>
     </div>
   );

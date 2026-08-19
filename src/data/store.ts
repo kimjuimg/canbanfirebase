@@ -2,6 +2,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   query,
@@ -21,8 +22,6 @@ import type {
   ScheduleSlot,
   Weekday,
 } from "../types";
-import { SEED_CARDS, SEED_CLASSES, SEED_LISTS, SEED_MESSAGES, SEED_PROFILES } from "../mock/seedData";
-
 interface StoreState {
   profiles: Profile[];
   classes: ClassRoom[];
@@ -93,8 +92,6 @@ class FirestoreStore {
     if (this.started) return;
     this.started = true;
 
-    void seedIfEmpty();
-
     for (const name of COLLECTIONS) {
       onSnapshot(
         collection(db, name),
@@ -119,6 +116,22 @@ class FirestoreStore {
 
   getProfile(profileId: string): Profile | undefined {
     return this.state.profiles.find((p) => p.id === profileId);
+  }
+
+  /**
+   * 로그인한 사용자의 프로필 문서를 보장한다. 문서 ID는 Firebase Auth의 uid다.
+   *
+   * PRD 03절: 가입한 사용자는 예외 없이 student로 시작하고, teacher 권한은
+   * Firebase 콘솔에서 관리자가 role 필드를 직접 바꿔야만 부여된다. 그래서 여기서는
+   * 절대 role을 받지 않으며, 이미 문서가 있으면 손대지 않는다 — 재로그인 때
+   * 관리자가 올려 둔 teacher 권한을 student로 되돌려 버리면 안 되기 때문이다.
+   */
+  async ensureProfile(uid: string, displayName: string): Promise<void> {
+    const ref = doc(db, "profiles", uid);
+    const existing = await getDoc(ref);
+    if (existing.exists()) return;
+    const profile: Profile = { id: uid, displayName, role: "student", classId: null };
+    await setDoc(ref, profile);
   }
 
   // ---- classes ----
@@ -251,27 +264,6 @@ class FirestoreStore {
       createdAt: Date.now(),
     };
     await setDoc(doc(db, "messages", message.id), message);
-  }
-}
-
-/**
- * 빈 프로젝트에 실습용 시드 데이터를 한 번만 넣는다.
- * 고정 문서 ID로 setDoc 하므로 여러 탭에서 동시에 실행돼도 중복이 생기지 않는다.
- */
-async function seedIfEmpty() {
-  try {
-    const existing = await getDocs(collection(db, "profiles"));
-    if (!existing.empty) return;
-
-    const batch = writeBatch(db);
-    SEED_PROFILES.forEach((p) => batch.set(doc(db, "profiles", p.id), p));
-    SEED_CLASSES.forEach((c) => batch.set(doc(db, "classes", c.id), c));
-    SEED_LISTS.forEach((l) => batch.set(doc(db, "lists", l.id), l));
-    SEED_CARDS.forEach((c) => batch.set(doc(db, "cards", c.id), c));
-    SEED_MESSAGES.forEach((m) => batch.set(doc(db, "messages", m.id), m));
-    await batch.commit();
-  } catch (error) {
-    console.error("[store] 시드 데이터 생성 실패", error);
   }
 }
 

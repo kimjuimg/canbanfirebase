@@ -53,15 +53,8 @@
   font-size: 14px;
 }
 
-.app-header__switch-label {
-  color: var(--text);
-}
-
-.app-header__user select {
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg);
+.app-header__name {
+  font-weight: 600;
 }
 
 /* ---- Onboarding ---- */
@@ -102,6 +95,33 @@
 .onboarding__error {
   color: #d84040;
   margin-top: 12px;
+}
+
+/* 로그인 폼은 입력이 여러 개라 한 줄 배치(.onboarding__card form)로는 좁다. */
+.onboarding__card form.login-form {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.onboarding__switch {
+  margin: 16px 0 0;
+  font-size: 14px;
+}
+
+.btn--link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent, #7c3aed);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.onboarding__note {
+  margin-top: 16px;
+  font-size: 13px;
+  color: #8b8b8b;
 }
 
 /* ---- Workspace ---- */

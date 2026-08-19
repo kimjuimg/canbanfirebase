@@ -1,7 +1,9 @@
-import { useMockUserSwitcher } from "../hooks/useCurrentUser";
+import { useCurrentUserContext } from "../context/CurrentUserContext";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 
 export function Header() {
-  const { profiles, currentProfileId, setCurrentProfileId } = useMockUserSwitcher();
+  const { authUser, logout } = useCurrentUserContext();
+  const profile = useCurrentUser();
 
   return (
     <header className="app-header">
@@ -11,22 +13,19 @@ export function Header() {
         </span>
         <span>칸반보드</span>
       </div>
-      <div className="app-header__user">
-        <label htmlFor="mock-user-select" className="app-header__switch-label">
-          체험 계정 전환 (mock)
-        </label>
-        <select
-          id="mock-user-select"
-          value={currentProfileId}
-          onChange={(e) => setCurrentProfileId(e.target.value)}
-        >
-          {profiles.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.displayName} · {p.role === "teacher" ? "교사" : "학생"}
-            </option>
-          ))}
-        </select>
-      </div>
+      {authUser && (
+        <div className="app-header__user">
+          <span className="app-header__name">{profile?.displayName ?? authUser.email}</span>
+          {profile && (
+            <span className={`role-badge role-badge--${profile.role}`}>
+              {profile.role === "teacher" ? "교사" : "학생"}
+            </span>
+          )}
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => void logout()}>
+            로그아웃
+          </button>
+        </div>
+      )}
     </header>
   );
 }
