@@ -1,8 +1,9 @@
 import { initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
 
-// PRD 06절 지침: 이번 단계는 SDK 초기화까지만 진행하고, 화면은 계속
-// src/mock/store.ts의 mock 데이터로 동작한다. Firestore/Auth 연동은
-// 이 app 인스턴스를 기반으로 다음 단계에서 붙인다.
+// 웹 앱의 Firebase 설정값은 비밀이 아니다(클라이언트 번들에 그대로 실린다).
+// 실제 접근 제어는 전적으로 Firestore 보안 규칙이 담당하므로, 규칙 작성 전까지는
+// 이 프로젝트의 데이터가 사실상 공개 상태라는 점을 전제로 다뤄야 한다.
 const firebaseConfig = {
   apiKey: "AIzaSyA1yiemZ6QfTobIq4-MBglKLpbOfiJOD88",
   authDomain: "kanban-firebase-f32d8.firebaseapp.com",
@@ -13,3 +14,4 @@ const firebaseConfig = {
 };
 
 export const firebaseApp = initializeApp(firebaseConfig);
+export const db = getFirestore(firebaseApp);

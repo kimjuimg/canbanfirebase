@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import type { Profile } from "../types";
-import { store } from "../mock/store";
+import { store } from "../data/store";
 
 interface OnboardingScreenProps {
   profile: Profile;
@@ -15,11 +15,22 @@ export function OnboardingScreen({ profile }: OnboardingScreenProps) {
 
 function CreateClassForm({ teacherId }: { teacherId: string }) {
   const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
-    store.createClass(name.trim(), teacherId);
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await store.createClass(name.trim(), teacherId);
+    } catch (err) {
+      console.error("[onboarding] 학급 생성 실패", err);
+      setError("학급을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -34,10 +45,11 @@ function CreateClassForm({ teacherId }: { teacherId: string }) {
             onChange={(e) => setName(e.target.value)}
             placeholder="예: 3학년 2반"
           />
-          <button type="submit" className="btn btn--primary">
-            학급 만들기
+          <button type="submit" className="btn btn--primary" disabled={busy}>
+            {busy ? "만드는 중…" : "학급 만들기"}
           </button>
         </form>
+        {error && <p className="onboarding__error">{error}</p>}
       </div>
     </div>
   );
@@ -45,14 +57,24 @@ function CreateClassForm({ teacherId }: { teacherId: string }) {
 
 function JoinClassForm({ studentId }: { studentId: string }) {
   const [joinCode, setJoinCode] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!joinCode.trim()) return;
-    const result = store.joinClassWithCode(studentId, joinCode);
-    if (!result.ok) {
-      setError(result.error);
+    if (!joinCode.trim() || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await store.joinClassWithCode(studentId, joinCode);
+      if (!result.ok) {
+        setError(result.error);
+      }
+    } catch (err) {
+      console.error("[onboarding] 학급 참여 실패", err);
+      setError("학급에 참여하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -71,8 +93,8 @@ function JoinClassForm({ studentId }: { studentId: string }) {
             }}
             placeholder="가입 코드"
           />
-          <button type="submit" className="btn btn--primary">
-            참여하기
+          <button type="submit" className="btn btn--primary" disabled={busy}>
+            {busy ? "참여하는 중…" : "참여하기"}
           </button>
         </form>
         {error && <p className="onboarding__error">{error}</p>}

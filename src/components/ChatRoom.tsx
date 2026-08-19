@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { store } from "../mock/store";
+import { store } from "../data/store";
 import { useStoreState } from "../hooks/useStoreState";
 import type { Profile } from "../types";
 

@@ -5,6 +5,13 @@
   text-align: left;
 }
 
+/* Firestore 첫 스냅샷을 기다리는 동안 보이는 화면. */
+.app-shell--loading {
+  align-items: center;
+  justify-content: center;
+  color: #8b8b8b;
+}
+
 .app-main {
   flex: 1;
   padding: 24px;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { store } from "../mock/store";
+import { store } from "../data/store";
 import { useStoreState } from "../hooks/useStoreState";
 import type { ClassRoom, Profile } from "../types";
 import { ChatRoom } from "./ChatRoom";
